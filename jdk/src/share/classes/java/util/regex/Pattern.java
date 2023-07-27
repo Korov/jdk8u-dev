@@ -2737,7 +2737,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                 if (uprop != null)
                     node = new Utype(uprop);
                 if (node == null)
-                    node = CharPropertyNames.charPropertyFor(name);
+                    node = CharPropertyNames.charPropertyFor(name, has(CASE_INSENSITIVE));
                 if (node == null)
                     node = unicodeScriptPropertyFor(name);
             } else {
@@ -2790,7 +2790,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
      * Returns a CharProperty matching all characters in a named property.
      */
     private CharProperty charPropertyNodeFor(String name) {
-        CharProperty p = CharPropertyNames.charPropertyFor(name);
+        CharProperty p = CharPropertyNames.charPropertyFor(name, has(CASE_INSENSITIVE));
         if (p == null)
             throw error("Unknown character property name {" + name + "}");
         return p;
@@ -5562,9 +5562,8 @@ NEXT:       while (i <= last) {
     static Node lastAccept = new LastNode();
 
     private static class CharPropertyNames {
-
-        static CharProperty charPropertyFor(String name) {
-            CharPropertyFactory m = map.get(name);
+        static CharProperty charPropertyFor(String name, boolean caseIns) {
+            CharPropertyFactory m = caseIns ? caseInsMap.get(name) : map.get(name);
             return m == null ? null : m.make();
         }
 
@@ -5574,20 +5573,26 @@ NEXT:       while (i <= last) {
 
         private static void defCategory(String name,
                                         final int typeMask) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return new Category(typeMask);}});
+            CharPropertyFactory factory = new CharPropertyFactory() {
+                    CharProperty make() { return new Category(typeMask);}};
+            map.put(name, factory);
+            caseInsMap.put(name, factory);
         }
 
         private static void defRange(String name,
                                      final int lower, final int upper) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return rangeFor(lower, upper);}});
+            CharPropertyFactory factory = new CharPropertyFactory() {
+                    CharProperty make() { return rangeFor(lower, upper);}};
+            map.put(name, factory);
+            caseInsMap.put(name, factory);
         }
 
         private static void defCtype(String name,
                                      final int ctype) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return new Ctype(ctype);}});
+            CharPropertyFactory factory =  new CharPropertyFactory() {
+                    CharProperty make() { return new Ctype(ctype);}};
+            map.put(name, factory);
+            caseInsMap.put(name, factory);
         }
 
         private static abstract class CloneableProperty
@@ -5604,11 +5609,23 @@ NEXT:       while (i <= last) {
 
         private static void defClone(String name,
                                      final CloneableProperty p) {
-            map.put(name, new CharPropertyFactory() {
+            CharPropertyFactory factory = new CharPropertyFactory() {
+                    CharProperty make() { return p.clone();}};
+            map.put(name, factory);
+            caseInsMap.put(name, factory);
+        }
+
+        private static void defClone(String name,
+                                     final CloneableProperty p, final CloneableProperty p1) {
+            caseInsMap.put(name, new CharPropertyFactory() {
                     CharProperty make() { return p.clone();}});
+            map.put(name, new CharPropertyFactory() {
+                    CharProperty make() { return p1.clone();}});
         }
 
         private static final HashMap<String, CharPropertyFactory> map
+            = new HashMap<>();
+        private static final HashMap<String, CharPropertyFactory> caseInsMap
             = new HashMap<>();
 
         static {
@@ -5705,7 +5722,14 @@ NEXT:       while (i <= last) {
             // Java character properties, defined by methods in Character.java
             defClone("javaLowerCase", new CloneableProperty() {
                 boolean isSatisfiedBy(int ch) {
+                    return Character.isLowerCase(ch) ||
+                    Character.isUpperCase(ch) ||
+                    Character.isTitleCase(ch);}},
+                    new CloneableProperty() {
+                boolean isSatisfiedBy(int ch) {
                     return Character.isLowerCase(ch);}});
+
+
             defClone("javaUpperCase", new CloneableProperty() {
                 boolean isSatisfiedBy(int ch) {
                     return Character.isUpperCase(ch);}});
