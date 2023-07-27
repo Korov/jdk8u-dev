@@ -223,6 +223,7 @@ enum UnicodeProp {
     private final static HashMap<String, String> posix = new HashMap<>();
     private final static HashMap<String, String> casInsPosix = new HashMap<>();
     private final static HashMap<String, String> aliases = new HashMap<>();
+
     static {
         posix.put("ALPHA", "ALPHABETIC");
         posix.put("LOWER", "LOWERCASE");
@@ -251,6 +252,8 @@ enum UnicodeProp {
 
     public static UnicodeProp forName(String propName, boolean caseIns) {
         propName = propName.toUpperCase(Locale.ENGLISH);
+        if (casInsPosix.values().contains(propName)) 
+            return null;
         if (caseIns && casInsPosix.containsKey(propName)) {
             propName = casInsPosix.get(propName);
         }
@@ -264,10 +267,13 @@ enum UnicodeProp {
     }
 
     public static UnicodeProp forPOSIXName(String propName, boolean caseIns) {
+        propName = propName.toUpperCase(Locale.ENGLISH);
+        if (casInsPosix.values().contains(propName)) 
+            return null;
         if (caseIns && casInsPosix.containsKey(propName)) {
             propName = casInsPosix.get(propName);
         } else {
-            propName = posix.get(propName.toUpperCase(Locale.ENGLISH));
+            propName = posix.get(propName);
         }
         if (propName == null)
             return null;
