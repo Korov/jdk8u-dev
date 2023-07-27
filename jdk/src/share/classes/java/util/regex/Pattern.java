@@ -2733,7 +2733,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             } else if (name.startsWith("Is")) {
                 // \p{isGeneralCategory} and \p{isScriptName}
                 name = name.substring(2);
-                UnicodeProp uprop = UnicodeProp.forName(name);
+                UnicodeProp uprop = UnicodeProp.forName(name, has(CASE_INSENSITIVE));
                 if (uprop != null)
                     node = new Utype(uprop);
                 if (node == null)
@@ -2742,7 +2742,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     node = unicodeScriptPropertyFor(name);
             } else {
                 if (has(UNICODE_CHARACTER_CLASS)) {
-                    UnicodeProp uprop = UnicodeProp.forPOSIXName(name);
+                    UnicodeProp uprop = UnicodeProp.forPOSIXName(name, has(CASE_INSENSITIVE));
                     if (uprop != null)
                         node = new Utype(uprop);
                 }
@@ -5579,12 +5579,28 @@ NEXT:       while (i <= last) {
             caseInsMap.put(name, factory);
         }
 
+        private static void defCategory(String name,
+                                        final int typeMask, final int typeMask1) {
+            map.put(name, new CharPropertyFactory() {
+                    CharProperty make() { return new Category(typeMask1);}});
+            caseInsMap.put(name, new CharPropertyFactory() {
+                    CharProperty make() { return new Category(typeMask);}});
+        }
+
         private static void defRange(String name,
                                      final int lower, final int upper) {
             CharPropertyFactory factory = new CharPropertyFactory() {
                     CharProperty make() { return rangeFor(lower, upper);}};
             map.put(name, factory);
             caseInsMap.put(name, factory);
+        }
+
+        private static void defRange(String name, final int ctype,
+                                     final int lower, final int upper) {
+            map.put(name, new CharPropertyFactory() {
+                    CharProperty make() { return rangeFor(lower, upper);}});
+            caseInsMap.put(name, new CharPropertyFactory() {
+                    CharProperty make() { return new Ctype(ctype);}});
         }
 
         private static void defCtype(String name,
@@ -5632,9 +5648,15 @@ NEXT:       while (i <= last) {
             // Unicode character property aliases, defined in
             // http://www.unicode.org/Public/UNIDATA/PropertyValueAliases.txt
             defCategory("Cn", 1<<Character.UNASSIGNED);
-            defCategory("Lu", 1<<Character.UPPERCASE_LETTER);
-            defCategory("Ll", 1<<Character.LOWERCASE_LETTER);
-            defCategory("Lt", 1<<Character.TITLECASE_LETTER);
+            defCategory("Lu", (1 << Character.LOWERCASE_LETTER) |
+            (1 << Character.UPPERCASE_LETTER) |
+            (1 << Character.TITLECASE_LETTER), 1<<Character.UPPERCASE_LETTER);
+            defCategory("Ll", (1 << Character.LOWERCASE_LETTER) |
+            (1 << Character.UPPERCASE_LETTER) |
+            (1 << Character.TITLECASE_LETTER), 1<<Character.LOWERCASE_LETTER);
+            defCategory("Lt", (1 << Character.LOWERCASE_LETTER) |
+            (1 << Character.UPPERCASE_LETTER) |
+            (1 << Character.TITLECASE_LETTER), 1<<Character.TITLECASE_LETTER);
             defCategory("Lm", 1<<Character.MODIFIER_LETTER);
             defCategory("Lo", 1<<Character.OTHER_LETTER);
             defCategory("Mn", 1<<Character.NON_SPACING_MARK);
@@ -5712,11 +5734,11 @@ NEXT:       while (i <= last) {
             defCtype("Cntrl", ASCII.CNTRL);  // Control characters
             defRange("Digit", '0', '9');     // Numeric characters
             defCtype("Graph", ASCII.GRAPH);  // printable and visible
-            defRange("Lower", 'a', 'z');     // Lower-case alphabetic
+            defRange("Lower", ASCII.ALPHA, 'a', 'z');     // Lower-case alphabetic
             defRange("Print", 0x20, 0x7E);   // Printable characters
             defCtype("Punct", ASCII.PUNCT);  // Punctuation characters
             defCtype("Space", ASCII.SPACE);  // Space characters
-            defRange("Upper", 'A', 'Z');     // Upper-case alphabetic
+            defRange("Upper", ASCII.ALPHA, 'A', 'Z');     // Upper-case alphabetic
             defCtype("XDigit",ASCII.XDIGIT); // hexadecimal digits
 
             // Java character properties, defined by methods in Character.java
@@ -5730,9 +5752,15 @@ NEXT:       while (i <= last) {
                     return Character.isLowerCase(ch);}});
 
 
-            defClone("javaUpperCase", new CloneableProperty() {
+            defClone("javaUpperCase",new CloneableProperty() {
+                boolean isSatisfiedBy(int ch) {
+                    return Character.isUpperCase(ch) ||
+                    Character.isLowerCase(ch) ||
+                    Character.isTitleCase(ch);}}, 
+                new CloneableProperty() {
                 boolean isSatisfiedBy(int ch) {
                     return Character.isUpperCase(ch);}});
+
             defClone("javaAlphabetic", new CloneableProperty() {
                 boolean isSatisfiedBy(int ch) {
                     return Character.isAlphabetic(ch);}});
@@ -5740,6 +5768,11 @@ NEXT:       while (i <= last) {
                 boolean isSatisfiedBy(int ch) {
                     return Character.isIdeographic(ch);}});
             defClone("javaTitleCase", new CloneableProperty() {
+                boolean isSatisfiedBy(int ch) {
+                    return Character.isTitleCase(ch) ||
+                    Character.isLowerCase(ch) ||
+                    Character.isUpperCase(ch);}},
+                 new CloneableProperty() {
                 boolean isSatisfiedBy(int ch) {
                     return Character.isTitleCase(ch);}});
             defClone("javaDigit", new CloneableProperty() {

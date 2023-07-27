@@ -54,15 +54,33 @@ enum UnicodeProp {
         }
     },
 
+    CASE_INS_LOWERCASE {
+        public boolean is(int ch) {
+            return Character.isLowerCase(ch) || Character.isUpperCase(ch) || Character.isTitleCase(ch);
+        }
+    },
+
     UPPERCASE {
         public boolean is(int ch) {
             return Character.isUpperCase(ch);
         }
     },
 
+    CASE_INS_UPPERCASE {
+        public boolean is(int ch) {
+            return Character.isUpperCase(ch) || Character.isLowerCase(ch) || Character.isTitleCase(ch);
+        }
+    },
+
     TITLECASE {
         public boolean is(int ch) {
             return Character.isTitleCase(ch);
+        }
+    },
+
+    CASE_INS_TITLECASE {
+        public boolean is(int ch) {
+            return Character.isTitleCase(ch) || Character.isLowerCase(ch) || Character.isUpperCase(ch);
         }
     },
 
@@ -203,6 +221,7 @@ enum UnicodeProp {
     };
 
     private final static HashMap<String, String> posix = new HashMap<>();
+    private final static HashMap<String, String> casInsPosix = new HashMap<>();
     private final static HashMap<String, String> aliases = new HashMap<>();
     static {
         posix.put("ALPHA", "ALPHABETIC");
@@ -218,14 +237,23 @@ enum UnicodeProp {
         posix.put("GRAPH", "GRAPH");
         posix.put("PRINT", "PRINT");
 
+        casInsPosix.put("LOWER", "CASE_INS_LOWERCASE");
+        casInsPosix.put("LOWERCASE", "CASE_INS_LOWERCASE");
+        casInsPosix.put("UPPER", "CASE_INS_UPPERCASE");
+        casInsPosix.put("UPPERCASE", "CASE_INS_UPPERCASE");
+        casInsPosix.put("TITLECASE", "CASE_INS_TITLECASE");
+
         aliases.put("WHITESPACE", "WHITE_SPACE");
         aliases.put("HEXDIGIT","HEX_DIGIT");
         aliases.put("NONCHARACTERCODEPOINT", "NONCHARACTER_CODE_POINT");
         aliases.put("JOINCONTROL", "JOIN_CONTROL");
     }
 
-    public static UnicodeProp forName(String propName) {
+    public static UnicodeProp forName(String propName, boolean caseIns) {
         propName = propName.toUpperCase(Locale.ENGLISH);
+        if (caseIns && casInsPosix.containsKey(propName)) {
+            propName = casInsPosix.get(propName);
+        }
         String alias = aliases.get(propName);
         if (alias != null)
             propName = alias;
@@ -235,8 +263,12 @@ enum UnicodeProp {
         return null;
     }
 
-    public static UnicodeProp forPOSIXName(String propName) {
-        propName = posix.get(propName.toUpperCase(Locale.ENGLISH));
+    public static UnicodeProp forPOSIXName(String propName, boolean caseIns) {
+        if (caseIns && casInsPosix.containsKey(propName)) {
+            propName = casInsPosix.get(propName);
+        } else {
+            propName = posix.get(propName.toUpperCase(Locale.ENGLISH));
+        }
         if (propName == null)
             return null;
         return valueOf (propName);
