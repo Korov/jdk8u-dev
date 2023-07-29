@@ -557,12 +557,6 @@ import java.util.stream.StreamSupport;
  * specified as <code>&#92;x{2011F}</code>, instead of two consecutive Unicode escape
  * sequences of the surrogate pair <code>&#92;uD840</code><code>&#92;uDD1F</code>.
  * <p>
- * <b>Unicode character names</b> are supported by the named character construct
- * <code>\N{</code>...<code>}</code>, for example, <code>\N{WHITE SMILING FACE}</code>
- * specifies character <code>&#92;u263A</code>. The character names supported
- * by this class are the valid Unicode character names matched by
- * {@link java.lang.Character#codePointOf(String) Character.codePointOf(name)}.
- * <p>
  * <a href="http://www.unicode.org/reports/tr18/#Default_Grapheme_Clusters">
  * <b>Unicode extended grapheme clusters</b></a> are supported by the grapheme
  * cluster matcher {@code \X} and the corresponding boundary matcher {@code \b{g}}.
@@ -2440,9 +2434,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         case 'K':
         case 'L':
         case 'M':
-            break;
         case 'N':
-            return N();
         case 'O':
         case 'P':
         case 'Q':
@@ -3418,23 +3410,6 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             setcursor(cur);
         }
         return n;
-    }
-
-    private int N() {
-        if (read() == '{') {
-            int i = cursor;
-            while (read() != '}') {
-                if (cursor >= patternLength)
-                    throw error("Unclosed character name escape sequence");
-            }
-            String name = new String(temp, i, cursor - i - 1);
-            try {
-                return Character.codePointOf(name);
-            } catch (IllegalArgumentException x) {
-                throw error("Unknown character name [" + name + "]");
-            }
-        }
-        throw error("Illegal character name escape sequence");
     }
 
     //
