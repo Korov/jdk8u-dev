@@ -4109,7 +4109,7 @@ public class RegExTest {
     // This test is for 8305733
     private static void caseInsensitivePMatch() {
         for (String input : new String[] {"abcd", "AbCd", "ABCD"}) {
-            for (String regex : new String[] {"abcd", "aBcD", "[a-d]{4}",
+            for (String pattern : new String[] {"abcd", "aBcD", "[a-d]{4}",
                     "(?:a|b|c|d){4}", "\\p{Lower}{4}", "\\p{Ll}{4}",
                     "\\p{IsLl}{4}", "\\p{gc=Ll}{4}",
                     "\\p{general_category=Ll}{4}", "\\p{IsLowercase}{4}",
@@ -4128,7 +4128,7 @@ public class RegExTest {
                     "[\\p{gc=Lt}]{4}", "[\\p{general_category=Lt}]{4}",
                     "[\\p{IsTitlecase}]{4}", "[\\p{javaTitleCase}]{4}"})
             {
-                Predicate<String> p = Pattern.compile(regex).asPredicate();
+                Predicate<String> p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).asPredicate();
                 if (!p.test(input)) {
                     failCount++;
                 }
@@ -4136,7 +4136,7 @@ public class RegExTest {
         }
 
         for (String input : new String[] {"\u01c7", "\u01c8", "\u01c9"}) {
-            for (String regex : new String[] {"\u01c7", "\u01c8", "\u01c9",
+            for (String pattern : new String[] {"\u01c7", "\u01c8", "\u01c9",
                     "[\u01c7\u01c8]", "[\u01c7\u01c9]", "[\u01c8\u01c9]",
                     "[\u01c7-\u01c8]", "[\u01c8-\u01c9]", "[\u01c7-\u01c9]",
                     "\\p{Lower}", "\\p{Ll}", "\\p{IsLl}", "\\p{gc=Ll}",
@@ -4156,7 +4156,8 @@ public class RegExTest {
                     "[\\p{gc=Lt}]", "[\\p{general_category=Lt}]",
                     "[\\p{IsTitlecase}]", "[\\p{javaTitleCase}]"})
             {
-                Predicate<String> p = Pattern.compile(regex).asPredicate();
+                Predicate<String> p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE
+                                                       | Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
                 if (!p.test(input)) {
                     failCount++;
                 }
