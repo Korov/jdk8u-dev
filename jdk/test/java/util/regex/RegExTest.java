@@ -147,6 +147,7 @@ public class RegExTest {
         groupCurlyNotFoundSuppTest();
         groupCurlyBackoffTest();
         patternAsPredicate();
+        caseInsensitivePMatch();
 
         if (failure) {
             throw new
@@ -4106,7 +4107,7 @@ public class RegExTest {
     }
 
     // This test is for 8305733
-    public static void caseInsensitivePMatch() {
+    private static void caseInsensitivePMatch() {
         for (String input : new String[] {"abcd", "AbCd", "ABCD"}) {
             for (String regex : new String[] {"abcd", "aBcD", "[a-d]{4}",
                     "(?:a|b|c|d){4}", "\\p{Lower}{4}", "\\p{Ll}{4}",
