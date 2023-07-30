@@ -148,6 +148,7 @@ public class RegExTest {
         groupCurlyNotFoundSuppTest();
         groupCurlyBackoffTest();
         patternAsPredicate();
+        caseInsensitivePMatch();
 
         if (failure) {
             throw new
@@ -4104,5 +4105,64 @@ public class RegExTest {
             failCount++;
         }
         report("Pattern.asPredicate");
+    }
+
+    // This test is for 8305733
+    private static void caseInsensitivePMatch() {
+        for (String input : new String[] {"abcd", "AbCd", "ABCD"}) {
+            for (String pattern : new String[] {"abcd", "aBcD", "[a-d]{4}",
+                    "(?:a|b|c|d){4}", "\\p{Lower}{4}", "\\p{Ll}{4}",
+                    "\\p{IsLl}{4}", "\\p{gc=Ll}{4}",
+                    "\\p{general_category=Ll}{4}", "\\p{IsLowercase}{4}",
+                    "\\p{javaLowerCase}{4}", "\\p{Upper}{4}", "\\p{Lu}{4}",
+                    "\\p{IsLu}{4}", "\\p{gc=Lu}{4}", "\\p{general_category=Lu}{4}",
+                    "\\p{IsUppercase}{4}", "\\p{javaUpperCase}{4}",
+                    "\\p{Lt}{4}", "\\p{IsLt}{4}", "\\p{gc=Lt}{4}",
+                    "\\p{general_category=Lt}{4}", "\\p{IsTitlecase}{4}",
+                    "\\p{javaTitleCase}{4}", "[\\p{Lower}]{4}", "[\\p{Ll}]{4}",
+                    "[\\p{IsLl}]{4}", "[\\p{gc=Ll}]{4}",
+                    "[\\p{general_category=Ll}]{4}", "[\\p{IsLowercase}]{4}",
+                    "[\\p{javaLowerCase}]{4}", "[\\p{Upper}]{4}", "[\\p{Lu}]{4}",
+                    "[\\p{IsLu}]{4}", "[\\p{gc=Lu}]{4}",
+                    "[\\p{general_category=Lu}]{4}", "[\\p{IsUppercase}]{4}",
+                    "[\\p{javaUpperCase}]{4}", "[\\p{Lt}]{4}", "[\\p{IsLt}]{4}",
+                    "[\\p{gc=Lt}]{4}", "[\\p{general_category=Lt}]{4}",
+                    "[\\p{IsTitlecase}]{4}", "[\\p{javaTitleCase}]{4}"})
+            {
+                Predicate<String> p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).asPredicate();
+                if (!p.test(input)) {
+                    failCount++;
+                }
+            }
+        }
+
+        for (String input : new String[] {"\u01c7", "\u01c8", "\u01c9"}) {
+            for (String pattern : new String[] {"\u01c7", "\u01c8", "\u01c9",
+                    "[\u01c7\u01c8]", "[\u01c7\u01c9]", "[\u01c8\u01c9]",
+                    "[\u01c7-\u01c8]", "[\u01c8-\u01c9]", "[\u01c7-\u01c9]",
+                    "\\p{Lower}", "\\p{Ll}", "\\p{IsLl}", "\\p{gc=Ll}",
+                    "\\p{general_category=Ll}", "\\p{IsLowercase}",
+                    "\\p{javaLowerCase}", "\\p{Upper}", "\\p{Lu}",
+                    "\\p{IsLu}", "\\p{gc=Lu}", "\\p{general_category=Lu}",
+                    "\\p{IsUppercase}", "\\p{javaUpperCase}",
+                    "\\p{Lt}", "\\p{IsLt}", "\\p{gc=Lt}",
+                    "\\p{general_category=Lt}", "\\p{IsTitlecase}",
+                    "\\p{javaTitleCase}", "[\\p{Lower}]", "[\\p{Ll}]",
+                    "[\\p{IsLl}]", "[\\p{gc=Ll}]",
+                    "[\\p{general_category=Ll}]", "[\\p{IsLowercase}]",
+                    "[\\p{javaLowerCase}]", "[\\p{Upper}]", "[\\p{Lu}]",
+                    "[\\p{IsLu}]", "[\\p{gc=Lu}]",
+                    "[\\p{general_category=Lu}]", "[\\p{IsUppercase}]",
+                    "[\\p{javaUpperCase}]", "[\\p{Lt}]", "[\\p{IsLt}]",
+                    "[\\p{gc=Lt}]", "[\\p{general_category=Lt}]",
+                    "[\\p{IsTitlecase}]", "[\\p{javaTitleCase}]"})
+            {
+                Predicate<String> p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE
+                                                       | Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
+                if (!p.test(input)) {
+                    failCount++;
+                }
+            }
+        }
     }
 }
