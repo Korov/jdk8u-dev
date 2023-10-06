@@ -969,6 +969,11 @@ public final class Pattern
     transient int[] buffer;
 
     /**
+     * A temporary storage used for predicate for double return.
+     */
+    transient CharPredicate predicate;
+
+    /**
      * Map the "name" of the "named capturing group" to its group id
      * node.
      */
@@ -2074,7 +2079,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                 tail = root;
                 continue;
             case '[':
-                node = clazz(true);
+                node = newCharProperty(clazz(true));
                 break;
             case '\\':
                 ch = nextEscaped();
@@ -2087,7 +2092,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     } else {
                         oneLetter = false;
                     }
-                    node = family(oneLetter, comp);
+                    node = newCharProperty(family(oneLetter, comp));
                 } else {
                     unread();
                     node = atom();
@@ -2114,12 +2119,12 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             case '.':
                 next();
                 if (has(DOTALL)) {
-                    node = new All();
+                    node = new CharProperty(ALL());
                 } else {
-                    if (has(UNIX_LINES))
-                        node = new UnixDot();
-                    else {
-                        node = new Dot();
+                    if (has(UNIX_LINES)) {
+                        node = new CharProperty(UNIXDOT());
+                    } else {
+                        node = new CharProperty(DOT());
                     }
                 }
                 break;
@@ -2204,7 +2209,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                             unread();
                         else
                             oneLetter = false;
-                        return family(oneLetter, comp);
+                        return newCharProperty(family(oneLetter, comp));
                     }
                 }
                 unread();
@@ -2242,7 +2247,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             break;
         }
         if (first == 1) {
-            return newSingle(buffer[0]);
+            return newCharProperty(single(buffer[0]));
         } else {
             return newSlice(buffer, first, hasSupplementary);
         }
@@ -2337,9 +2342,14 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         case 'C':
             break;
         case 'D':
-            if (create) root = has(UNICODE_CHARACTER_CLASS)
-                               ? new Utype(UnicodeProp.DIGIT).complement()
-                               : new Ctype(ASCII.DIGIT).complement();
+            if (create) {
+                predicate = has(UNICODE_CHARACTER_CLASS)
+                        ? CharPredicates.DIGIT() : CharPredicates.ASCII_DIGIT();
+                predicate = predicate.negate();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'E':
         case 'F':
@@ -2349,7 +2359,12 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             if (create) root = new LastMatch();
             return -1;
         case 'H':
-            if (create) root = new HorizWS().complement();
+            if (create) {
+                predicate = HorizWS().negate();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'I':
         case 'J':
@@ -2366,20 +2381,35 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             if (create) root = new LineEnding();
             return -1;
         case 'S':
-            if (create) root = has(UNICODE_CHARACTER_CLASS)
-                               ? new Utype(UnicodeProp.WHITE_SPACE).complement()
-                               : new Ctype(ASCII.SPACE).complement();
+            if (create) {
+                predicate = has(UNICODE_CHARACTER_CLASS) ?
+                        CharPredicates.WHITE_SPACE() : CharPredicates.ASCII_SPACE();
+                predicate = predicate.negate();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'T':
         case 'U':
             break;
         case 'V':
-            if (create) root = new VertWS().complement();
+            if (create) {
+                predicate = VertWS().negate();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'W':
-            if (create) root = has(UNICODE_CHARACTER_CLASS)
-                               ? new Utype(UnicodeProp.WORD).complement()
-                               : new Ctype(ASCII.WORD).complement();
+            if (create) {
+                predicate = has(UNICODE_CHARACTER_CLASS) ?
+                        CharPredicates.WORD() : CharPredicates.ASCII_WORD();
+                predicate = predicate.negate();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'X':
         case 'Y':
@@ -2402,9 +2432,13 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         case 'c':
             return c();
         case 'd':
-            if (create) root = has(UNICODE_CHARACTER_CLASS)
-                               ? new Utype(UnicodeProp.DIGIT)
-                               : new Ctype(ASCII.DIGIT);
+            if (create) {
+                predicate = has(UNICODE_CHARACTER_CLASS) ?
+                        CharPredicates.DIGIT() : CharPredicates.ASCII_DIGIT();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'e':
             return '\033';
@@ -2413,7 +2447,12 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         case 'g':
             break;
         case 'h':
-            if (create) root = new HorizWS();
+            if (create) {
+                predicate = HorizWS();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'i':
         case 'j':
@@ -2445,9 +2484,13 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         case 'r':
             return '\r';
         case 's':
-            if (create) root = has(UNICODE_CHARACTER_CLASS)
-                               ? new Utype(UnicodeProp.WHITE_SPACE)
-                               : new Ctype(ASCII.SPACE);
+            if (create) {
+                predicate = has(UNICODE_CHARACTER_CLASS) ?
+                        CharPredicates.WHITE_SPACE() : CharPredicates.ASCII_SPACE();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 't':
             return '\t';
@@ -2464,12 +2507,21 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             // compatibility concern '\013'/0x0B is returned if isrange.
             if (isrange)
                 return '\013';
-            if (create) root = new VertWS();
+            if (create) {
+                predicate = VertWS();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'w':
-            if (create) root = has(UNICODE_CHARACTER_CLASS)
-                               ? new Utype(UnicodeProp.WORD)
-                               : new Ctype(ASCII.WORD);
+            if (create) {
+                predicate = has(UNICODE_CHARACTER_CLASS) ?
+                        CharPredicates.WORD() : CharPredicates.ASCII_WORD();
+                /*if (!inclass)
+                    root = newCharProperty(predicate);*/
+                root = newCharProperty(predicate);
+            }
             return -1;
         case 'x':
             return x();
@@ -2492,9 +2544,9 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
      * is true except for the case of [abc&&def] where def is a separate
      * right hand node with "understood" brackets.
      */
-    private CharProperty clazz(boolean consume) {
-        CharProperty prev = null;
-        CharProperty node = null;
+    private CharPredicate clazz(boolean consume) {
+        CharPredicate prev = null;
+        CharPredicate node = null;
         BitClass bits = new BitClass();
         boolean include = true;
         boolean firstInClass = true;
@@ -2519,7 +2571,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     if (prev == null)
                         prev = node;
                     else
-                        prev = union(prev, node);
+                        prev = prev.union(node);
                     ch = peek();
                     continue;
                 case '&':
@@ -2527,13 +2579,13 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     ch = next();
                     if (ch == '&') {
                         ch = next();
-                        CharProperty rightNode = null;
+                        CharPredicate rightNode = null;
                         while (ch != ']' && ch != '&') {
                             if (ch == '[') {
                                 if (rightNode == null)
                                     rightNode = clazz(true);
                                 else
-                                    rightNode = union(rightNode, clazz(true));
+                                    rightNode = rightNode.union(clazz(true));
                             } else { // abc&&def
                                 unread();
                                 rightNode = clazz(false);
@@ -2548,7 +2600,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                             else
                                 prev = rightNode;
                         } else {
-                            prev = intersection(prev, node);
+                            prev = prev.and(node);
                         }
                     } else {
                         // treat as a literal &
@@ -2579,21 +2631,21 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     prev = node;
                 } else {
                     if (prev != node)
-                        prev = union(prev, node);
+                        prev = prev.union(node);
                 }
             } else {
                 if (prev == null) {
-                    prev = node.complement();
+                    prev = node.negate();
                 } else {
                     if (prev != node)
-                        prev = setDifference(prev, node);
+                        prev = prev.negate().and(node);
                 }
             }
             ch = peek();
         }
     }
 
-    private CharProperty bitsOrSingle(BitClass bits, int ch) {
+    private CharPredicate bitsOrSingle(BitClass bits, int ch) {
         /* Bits can only handle codepoints in [u+0000-u+00ff] range.
            Use "single" node instead of bits when dealing with unicode
            case folding for codepoints listed below.
@@ -2611,23 +2663,49 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
            (6)AngstromSign u+212b
               toLowerCase(u+212b) ==> u+00e5
         */
-        int d;
         if (ch < 256 &&
-            !(has(CASE_INSENSITIVE) && has(UNICODE_CASE) &&
-              (ch == 0xff || ch == 0xb5 ||
-               ch == 0x49 || ch == 0x69 ||  //I and i
-               ch == 0x53 || ch == 0x73 ||  //S and s
-               ch == 0x4b || ch == 0x6b ||  //K and k
-               ch == 0xc5 || ch == 0xe5)))  //A+ring
-            return bits.add(ch, flags());
-        return newSingle(ch);
+                !(has(CASE_INSENSITIVE) && has(UNICODE_CASE) &&
+                        (ch == 0xff || ch == 0xb5 ||
+                                ch == 0x49 || ch == 0x69 ||    //I and i
+                                ch == 0x53 || ch == 0x73 ||    //S and s
+                                ch == 0x4b || ch == 0x6b ||    //K and k
+                                ch == 0xc5 || ch == 0xe5))) {  //A+ring
+            BitClass bitClass = bits.add(ch, flags());
+            return c -> c < 256 && bitClass.bits[c];
+        }
+        return single(ch);
+    }
+
+    /**
+     *  Returns a suitably optimized, single character predicate
+     */
+    private CharPredicate single(final int ch) {
+        if (has(CASE_INSENSITIVE)) {
+            int lower, upper;
+            if (has(UNICODE_CASE)) {
+                upper = Character.toUpperCase(ch);
+                lower = Character.toLowerCase(upper);
+                // Unicode case insensitive matches
+                if (upper != lower)
+                    return SingleU(lower);
+            } else if (ASCII.isAscii(ch)) {
+                lower = ASCII.toLower(ch);
+                upper = ASCII.toUpper(ch);
+                // Case insensitive matches a given BMP character
+                if (lower != upper)
+                    return SingleI(lower, upper);
+            }
+        }
+        if (isSupplementary(ch))
+            return SingleS(ch);
+        return Single(ch);  // Match a given BMP character
     }
 
     /**
      * Parse a single character or a character range in a character class
      * and return its representative node.
      */
-    private CharProperty range(BitClass bits) {
+    private CharPredicate range(BitClass bits) {
         int ch = peek();
         if (ch == '\\') {
             ch = nextEscaped();
@@ -2646,7 +2724,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                 unread();
                 ch = escape(true, true, isrange);
                 if (ch == -1)
-                    return (CharProperty) root;
+                    return predicate;
             }
         } else {
             next();
@@ -2668,10 +2746,13 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     if (m < ch) {
                         throw error("Illegal character range");
                     }
-                    if (has(CASE_INSENSITIVE))
-                        return caseInsensitiveRangeFor(ch, m);
-                    else
-                        return rangeFor(ch, m);
+                    if (has(CASE_INSENSITIVE)) {
+                        if (has(UNICODE_CASE))
+                            return CIRangeU(ch, m);
+                        return CIRange(ch, m);
+                    } else {
+                        return Range(ch, m);
+                    }
                 }
             }
             return bitsOrSingle(bits, ch);
@@ -2682,12 +2763,10 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
     /**
      * Parses a Unicode character family and returns its representative node.
      */
-    private CharProperty family(boolean singleLetter,
-                                boolean maybeComplement)
-    {
+    private CharPredicate family(boolean singleLetter, boolean isComplement) {
         next();
         String name;
-        CharProperty node = null;
+        CharPredicate p = null;
 
         if (singleLetter) {
             int c = temp[cursor];
@@ -2717,11 +2796,11 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             String value = name.substring(i + 1);
             name = name.substring(0, i).toLowerCase(Locale.ENGLISH);
             if ("sc".equals(name) || "script".equals(name)) {
-                node = unicodeScriptPropertyFor(value);
+                p = CharPredicates.forUnicodeScript(value);
             } else if ("blk".equals(name) || "block".equals(name)) {
-                node = unicodeBlockPropertyFor(value);
+                p = CharPredicates.forUnicodeBlock(value);
             } else if ("gc".equals(name) || "general_category".equals(name)) {
-                node = charPropertyNodeFor(value);
+                p = CharPredicates.forProperty(value);
             } else {
                 throw error("Unknown Unicode property {name=<" + name + ">, "
                              + "value=<" + value + ">}");
@@ -2729,71 +2808,39 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         } else {
             if (name.startsWith("In")) {
                 // \p{inBlockName}
-                node = unicodeBlockPropertyFor(name.substring(2));
+                p = CharPredicates.forUnicodeBlock(name.substring(2));
             } else if (name.startsWith("Is")) {
                 // \p{isGeneralCategory} and \p{isScriptName}
                 name = name.substring(2);
-                UnicodeProp uprop = UnicodeProp.forName(name);
-                if (uprop != null)
-                    node = new Utype(uprop);
-                if (node == null)
-                    node = CharPropertyNames.charPropertyFor(name);
-                if (node == null)
-                    node = unicodeScriptPropertyFor(name);
+                p = CharPredicates.forUnicodeProperty(name);
+                if (p == null)
+                    p = CharPredicates.forProperty(name);
+                if (p == null)
+                    p = CharPredicates.forUnicodeScript(name);
             } else {
                 if (has(UNICODE_CHARACTER_CLASS)) {
-                    UnicodeProp uprop = UnicodeProp.forPOSIXName(name);
-                    if (uprop != null)
-                        node = new Utype(uprop);
+                    p = CharPredicates.forPOSIXName(name);
                 }
-                if (node == null)
-                    node = charPropertyNodeFor(name);
+                if (p == null)
+                    p = CharPredicates.forProperty(name);
             }
         }
-        if (maybeComplement) {
-            if (node instanceof Category || node instanceof Block)
-                hasSupplementary = true;
-            node = node.complement();
+        if (isComplement) {
+            hasSupplementary = true;
+            p = p.negate();
         }
-        return node;
-    }
-
-
-    /**
-     * Returns a CharProperty matching all characters belong to
-     * a UnicodeScript.
-     */
-    private CharProperty unicodeScriptPropertyFor(String name) {
-        final Character.UnicodeScript script;
-        try {
-            script = Character.UnicodeScript.forName(name);
-        } catch (IllegalArgumentException iae) {
-            throw error("Unknown character script name {" + name + "}");
-        }
-        return new Script(script);
-    }
-
-    /**
-     * Returns a CharProperty matching all characters in a UnicodeBlock.
-     */
-    private CharProperty unicodeBlockPropertyFor(String name) {
-        final Character.UnicodeBlock block;
-        try {
-            block = Character.UnicodeBlock.forName(name);
-        } catch (IllegalArgumentException iae) {
-            throw error("Unknown character block name {" + name + "}");
-        }
-        return new Block(block);
-    }
-
-    /**
-     * Returns a CharProperty matching all characters in a named property.
-     */
-    private CharProperty charPropertyNodeFor(String name) {
-        CharProperty p = CharPropertyNames.charPropertyFor(name);
-        if (p == null)
-            throw error("Unknown character property name {" + name + "}");
         return p;
+    }
+
+    private CharProperty newCharProperty(CharPredicate p) {
+        if (p == null)
+            return null;
+        if (p instanceof Pattern.BmpCharPredicate)
+            return new BmpCharProperty((Pattern.BmpCharPredicate)p);
+        else {
+            hasSupplementary = true;
+            return new CharProperty(p);
+        }
     }
 
     /**
@@ -3328,8 +3375,16 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
      */
     private static final class BitClass extends BmpCharProperty {
         final boolean[] bits;
-        BitClass() { bits = new boolean[256]; }
-        private BitClass(boolean[] bits) { this.bits = bits; }
+
+        BitClass() {
+            this(new boolean[256]);
+        }
+
+        private BitClass(boolean[] bits) {
+            super( ch -> ch < 256 && bits[ch]);
+            this.bits = bits;
+        }
+
         BitClass add(int c, int flags) {
             assert c >= 0 && c <= 255;
             if ((flags & CASE_INSENSITIVE) != 0) {
@@ -3344,32 +3399,29 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             bits[c] = true;
             return this;
         }
-        boolean isSatisfiedBy(int ch) {
-            return ch < 256 && bits[ch];
-        }
     }
 
     /**
      *  Returns a suitably optimized, single character matcher.
      */
-    private CharProperty newSingle(final int ch) {
+    private CharPredicate newSingle(final int ch) {
         if (has(CASE_INSENSITIVE)) {
             int lower, upper;
             if (has(UNICODE_CASE)) {
                 upper = Character.toUpperCase(ch);
                 lower = Character.toLowerCase(upper);
                 if (upper != lower)
-                    return new SingleU(lower);
+                    return SingleU(lower);
             } else if (ASCII.isAscii(ch)) {
                 lower = ASCII.toLower(ch);
                 upper = ASCII.toUpper(ch);
                 if (lower != upper)
-                    return new SingleI(lower, upper);
+                    return SingleI(lower, upper);
             }
         }
         if (isSupplementary(ch))
-            return new SingleS(ch);    // Match a given Unicode character
-        return new Single(ch);         // Match a given BMP character
+            return SingleS(ch);    // Match a given Unicode character
+        return Single(ch);         // Match a given BMP character
     }
 
     /**
@@ -3777,18 +3829,18 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
      * Abstract node class to match one character satisfying some
      * boolean property.
      */
-    private static abstract class CharProperty extends Node {
-        abstract boolean isSatisfiedBy(int ch);
-        CharProperty complement() {
-            return new CharProperty() {
-                    boolean isSatisfiedBy(int ch) {
-                        return ! CharProperty.this.isSatisfiedBy(ch);}};
+    static class CharProperty extends Node {
+        CharPredicate predicate;
+
+        CharProperty (CharPredicate predicate) {
+            this.predicate = predicate;
         }
+
         boolean match(Matcher matcher, int i, CharSequence seq) {
             if (i < matcher.to) {
                 int ch = Character.codePointAt(seq, i);
-                return isSatisfiedBy(ch)
-                    && next.match(matcher, i+Character.charCount(ch), seq);
+                return predicate.is(ch) &&
+                        next.match(matcher, i + Character.charCount(ch), seq);
             } else {
                 matcher.hitEnd = true;
                 return false;
@@ -3805,11 +3857,14 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
      * Optimized version of CharProperty that works only for
      * properties never satisfied by Supplementary characters.
      */
-    private static abstract class BmpCharProperty extends CharProperty {
+    private static class BmpCharProperty extends CharProperty {
+        BmpCharProperty (BmpCharPredicate predicate) {
+            super(predicate);
+        }
         boolean match(Matcher matcher, int i, CharSequence seq) {
             if (i < matcher.to) {
-                return isSatisfiedBy(seq.charAt(i))
-                    && next.match(matcher, i+1, seq);
+                return predicate.is(seq.charAt(i)) &&
+                        next.match(matcher, i + 1, seq);
             } else {
                 matcher.hitEnd = true;
                 return false;
@@ -3818,135 +3873,50 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
     }
 
     /**
-     * Node class that matches a Supplementary Unicode character
+     * Indicate that matches a Supplementary Unicode character
      */
-    static final class SingleS extends CharProperty {
-        final int c;
-        SingleS(int c) { this.c = c; }
-        boolean isSatisfiedBy(int ch) {
-            return ch == c;
-        }
+    static CharPredicate SingleS(int c) {
+        return ch -> ch == c;
     }
 
     /**
-     * Optimization -- matches a given BMP character
+     * A bmp/optimized predicate of single
      */
-    static final class Single extends BmpCharProperty {
-        final int c;
-        Single(int c) { this.c = c; }
-        boolean isSatisfiedBy(int ch) {
-            return ch == c;
-        }
+    static BmpCharPredicate Single(int c) {
+        return ch -> ch == c;
     }
 
     /**
      * Case insensitive matches a given BMP character
      */
-    static final class SingleI extends BmpCharProperty {
-        final int lower;
-        final int upper;
-        SingleI(int lower, int upper) {
-            this.lower = lower;
-            this.upper = upper;
-        }
-        boolean isSatisfiedBy(int ch) {
-            return ch == lower || ch == upper;
-        }
+    static BmpCharPredicate SingleI(int lower, int upper) {
+        return ch -> ch == lower || ch == upper;
     }
 
     /**
      * Unicode case insensitive matches a given Unicode character
      */
-    static final class SingleU extends CharProperty {
-        final int lower;
-        SingleU(int lower) {
-            this.lower = lower;
-        }
-        boolean isSatisfiedBy(int ch) {
-            return lower == ch ||
+    static CharPredicate SingleU(int lower) {
+        return ch -> lower == ch ||
                 lower == Character.toLowerCase(Character.toUpperCase(ch));
-        }
     }
 
     /**
-     * Node class that matches a Unicode block.
+     * matches a Perl vertical whitespace
      */
-    static final class Block extends CharProperty {
-        final Character.UnicodeBlock block;
-        Block(Character.UnicodeBlock block) {
-            this.block = block;
-        }
-        boolean isSatisfiedBy(int ch) {
-            return block == Character.UnicodeBlock.of(ch);
-        }
+    static BmpCharPredicate VertWS() {
+        return cp -> (cp >= 0x0A && cp <= 0x0D) ||
+                cp == 0x85 || cp == 0x2028 || cp == 0x2029;
     }
 
     /**
-     * Node class that matches a Unicode script
+     * matches a Perl horizontal whitespace
      */
-    static final class Script extends CharProperty {
-        final Character.UnicodeScript script;
-        Script(Character.UnicodeScript script) {
-            this.script = script;
-        }
-        boolean isSatisfiedBy(int ch) {
-            return script == Character.UnicodeScript.of(ch);
-        }
-    }
-
-    /**
-     * Node class that matches a Unicode category.
-     */
-    static final class Category extends CharProperty {
-        final int typeMask;
-        Category(int typeMask) { this.typeMask = typeMask; }
-        boolean isSatisfiedBy(int ch) {
-            return (typeMask & (1 << Character.getType(ch))) != 0;
-        }
-    }
-
-    /**
-     * Node class that matches a Unicode "type"
-     */
-    static final class Utype extends CharProperty {
-        final UnicodeProp uprop;
-        Utype(UnicodeProp uprop) { this.uprop = uprop; }
-        boolean isSatisfiedBy(int ch) {
-            return uprop.is(ch);
-        }
-    }
-
-    /**
-     * Node class that matches a POSIX type.
-     */
-    static final class Ctype extends BmpCharProperty {
-        final int ctype;
-        Ctype(int ctype) { this.ctype = ctype; }
-        boolean isSatisfiedBy(int ch) {
-            return ch < 128 && ASCII.isType(ch, ctype);
-        }
-    }
-
-    /**
-     * Node class that matches a Perl vertical whitespace
-     */
-    static final class VertWS extends BmpCharProperty {
-        boolean isSatisfiedBy(int cp) {
-            return (cp >= 0x0A && cp <= 0x0D) ||
-                   cp == 0x85 || cp == 0x2028 || cp == 0x2029;
-        }
-    }
-
-    /**
-     * Node class that matches a Perl horizontal whitespace
-     */
-    static final class HorizWS extends BmpCharProperty {
-        boolean isSatisfiedBy(int cp) {
-            return cp == 0x09 || cp == 0x20 || cp == 0xa0 ||
-                   cp == 0x1680 || cp == 0x180e ||
-                   cp >= 0x2000 && cp <= 0x200a ||
-                   cp == 0x202f || cp == 0x205f || cp == 0x3000;
-        }
+    static BmpCharPredicate HorizWS() {
+        return cp ->
+                cp == 0x09 || cp == 0x20 || cp == 0xa0 || cp == 0x1680 ||
+                        cp == 0x180e || cp >= 0x2000 && cp <= 0x200a ||  cp == 0x202f ||
+                        cp == 0x205f || cp == 0x3000;
     }
 
     /**
@@ -4116,67 +4086,55 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
     }
 
     /**
-     * Returns node for matching characters within an explicit value range.
+     * Characters within a explicit value range
      */
-    private static CharProperty rangeFor(final int lower,
-                                         final int upper) {
-        return new CharProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return inRange(lower, ch, upper);}};
+    static CharPredicate Range(int lower, int upper) {
+        return ch -> inRange(lower, ch, upper);
     }
 
     /**
-     * Returns node for matching characters within an explicit value
-     * range in a case insensitive manner.
+     * Characters within a explicit value range in a case insensitive manner.
      */
-    private CharProperty caseInsensitiveRangeFor(final int lower,
-                                                 final int upper) {
-        if (has(UNICODE_CASE))
-            return new CharProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    if (inRange(lower, ch, upper))
-                        return true;
-                    int up = Character.toUpperCase(ch);
-                    return inRange(lower, up, upper) ||
-                           inRange(lower, Character.toLowerCase(up), upper);}};
-        return new CharProperty() {
-            boolean isSatisfiedBy(int ch) {
-                return inRange(lower, ch, upper) ||
-                    ASCII.isAscii(ch) &&
+    static CharPredicate CIRange(int lower, int upper) {
+        return ch -> inRange(lower, ch, upper) ||
+                ASCII.isAscii(ch) &&
                         (inRange(lower, ASCII.toUpper(ch), upper) ||
-                         inRange(lower, ASCII.toLower(ch), upper));
-            }};
+                                inRange(lower, ASCII.toLower(ch), upper));
+    }
+
+    static CharPredicate CIRangeU(int lower, int upper) {
+        return ch -> {
+            if (inRange(lower, ch, upper))
+                return true;
+            int up = Character.toUpperCase(ch);
+            return inRange(lower, up, upper) ||
+                    inRange(lower, Character.toLowerCase(up), upper);
+        };
     }
 
     /**
-     * Implements the Unicode category ALL and the dot metacharacter when
-     * in dotall mode.
+     *  for the Unicode category ALL and the dot metacharacter when
+     *  in dotall mode.
      */
-    static final class All extends CharProperty {
-        boolean isSatisfiedBy(int ch) {
-            return true;
-        }
+    static CharPredicate ALL() {
+        return ch -> true;
     }
 
     /**
-     * Node class for the dot metacharacter when dotall is not enabled.
+     * for the dot metacharacter when dotall is not enabled.
      */
-    static final class Dot extends CharProperty {
-        boolean isSatisfiedBy(int ch) {
-            return (ch != '\n' && ch != '\r'
-                    && (ch|1) != '\u2029'
-                    && ch != '\u0085');
-        }
+    static CharPredicate DOT() {
+        return ch ->
+                (ch != '\n' && ch != '\r'
+                        && (ch|1) != '\u2029'
+                        && ch != '\u0085');
     }
 
     /**
-     * Node class for the dot metacharacter when dotall is not enabled
-     * but UNIX_LINES is enabled.
+     *  the dot metacharacter when dotall is not enabled but UNIX_LINES is enabled.
      */
-    static final class UnixDot extends CharProperty {
-        boolean isSatisfiedBy(int ch) {
-            return ch != '\n';
-        }
+    static CharPredicate UNIXDOT() {
+        return ch ->  ch != '\n';
     }
 
     /**
@@ -5256,36 +5214,6 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
     }
 
     /**
-     * Returns the set union of two CharProperty nodes.
-     */
-    private static CharProperty union(final CharProperty lhs,
-                                      final CharProperty rhs) {
-        return new CharProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return lhs.isSatisfiedBy(ch) || rhs.isSatisfiedBy(ch);}};
-    }
-
-    /**
-     * Returns the set intersection of two CharProperty nodes.
-     */
-    private static CharProperty intersection(final CharProperty lhs,
-                                             final CharProperty rhs) {
-        return new CharProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return lhs.isSatisfiedBy(ch) && rhs.isSatisfiedBy(ch);}};
-    }
-
-    /**
-     * Returns the set difference of two CharProperty nodes.
-     */
-    private static CharProperty setDifference(final CharProperty lhs,
-                                              final CharProperty rhs) {
-        return new CharProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return ! rhs.isSatisfiedBy(ch) && lhs.isSatisfiedBy(ch);}};
-    }
-
-    /**
      * Handles word boundaries. Includes a field to allow this one class to
      * deal with the different types of word boundaries we can match. The word
      * characters include underscores, letters, and digits. Non spacing marks
@@ -5305,7 +5233,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         }
 
         boolean isWord(int ch) {
-            return useUWORD ? UnicodeProp.WORD.is(ch)
+            return useUWORD ? CharPredicates.WORD().is(ch)
                             : (ch == '_' || Character.isLetterOrDigit(ch));
         }
 
@@ -5551,6 +5479,53 @@ NEXT:       while (i <= last) {
         }
     }
 
+    @FunctionalInterface
+    static interface CharPredicate {
+        boolean is(int ch);
+
+        default CharPredicate and(CharPredicate p) {
+            return ch -> is(ch) && p.is(ch);
+        }
+        default CharPredicate union(CharPredicate p) {
+            return ch -> is(ch) || p.is(ch);
+        }
+        default CharPredicate union(CharPredicate p1,
+                                    CharPredicate p2 ) {
+            return ch -> is(ch) || p1.is(ch) || p2.is(ch);
+        }
+        default CharPredicate negate() {
+            return ch -> !is(ch);
+        }
+    }
+
+    static interface BmpCharPredicate extends CharPredicate {
+
+        default CharPredicate and(CharPredicate p) {
+            if(p instanceof BmpCharPredicate)
+                return (BmpCharPredicate)(ch -> is(ch) && p.is(ch));
+            return ch -> is(ch) && p.is(ch);
+        }
+        default CharPredicate union(CharPredicate p) {
+            if (p instanceof BmpCharPredicate)
+                return (BmpCharPredicate)(ch -> is(ch) || p.is(ch));
+            return ch -> is(ch) || p.is(ch);
+        }
+        static CharPredicate union(CharPredicate... predicates) {
+            CharPredicate cp = ch -> {
+                for (CharPredicate p : predicates) {
+                    if (!p.is(ch))
+                        return false;
+                }
+                return true;
+            };
+            for (CharPredicate p : predicates) {
+                if (! (p instanceof BmpCharPredicate))
+                    return cp;
+            }
+            return (BmpCharPredicate)cp;
+        }
+    }
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -5560,205 +5535,6 @@ NEXT:       while (i <= last) {
     static Node accept = new Node();
 
     static Node lastAccept = new LastNode();
-
-    private static class CharPropertyNames {
-
-        static CharProperty charPropertyFor(String name) {
-            CharPropertyFactory m = map.get(name);
-            return m == null ? null : m.make();
-        }
-
-        private static abstract class CharPropertyFactory {
-            abstract CharProperty make();
-        }
-
-        private static void defCategory(String name,
-                                        final int typeMask) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return new Category(typeMask);}});
-        }
-
-        private static void defRange(String name,
-                                     final int lower, final int upper) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return rangeFor(lower, upper);}});
-        }
-
-        private static void defCtype(String name,
-                                     final int ctype) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return new Ctype(ctype);}});
-        }
-
-        private static abstract class CloneableProperty
-            extends CharProperty implements Cloneable
-        {
-            public CloneableProperty clone() {
-                try {
-                    return (CloneableProperty) super.clone();
-                } catch (CloneNotSupportedException e) {
-                    throw new AssertionError(e);
-                }
-            }
-        }
-
-        private static void defClone(String name,
-                                     final CloneableProperty p) {
-            map.put(name, new CharPropertyFactory() {
-                    CharProperty make() { return p.clone();}});
-        }
-
-        private static final HashMap<String, CharPropertyFactory> map
-            = new HashMap<>();
-
-        static {
-            // Unicode character property aliases, defined in
-            // http://www.unicode.org/Public/UNIDATA/PropertyValueAliases.txt
-            defCategory("Cn", 1<<Character.UNASSIGNED);
-            defCategory("Lu", 1<<Character.UPPERCASE_LETTER);
-            defCategory("Ll", 1<<Character.LOWERCASE_LETTER);
-            defCategory("Lt", 1<<Character.TITLECASE_LETTER);
-            defCategory("Lm", 1<<Character.MODIFIER_LETTER);
-            defCategory("Lo", 1<<Character.OTHER_LETTER);
-            defCategory("Mn", 1<<Character.NON_SPACING_MARK);
-            defCategory("Me", 1<<Character.ENCLOSING_MARK);
-            defCategory("Mc", 1<<Character.COMBINING_SPACING_MARK);
-            defCategory("Nd", 1<<Character.DECIMAL_DIGIT_NUMBER);
-            defCategory("Nl", 1<<Character.LETTER_NUMBER);
-            defCategory("No", 1<<Character.OTHER_NUMBER);
-            defCategory("Zs", 1<<Character.SPACE_SEPARATOR);
-            defCategory("Zl", 1<<Character.LINE_SEPARATOR);
-            defCategory("Zp", 1<<Character.PARAGRAPH_SEPARATOR);
-            defCategory("Cc", 1<<Character.CONTROL);
-            defCategory("Cf", 1<<Character.FORMAT);
-            defCategory("Co", 1<<Character.PRIVATE_USE);
-            defCategory("Cs", 1<<Character.SURROGATE);
-            defCategory("Pd", 1<<Character.DASH_PUNCTUATION);
-            defCategory("Ps", 1<<Character.START_PUNCTUATION);
-            defCategory("Pe", 1<<Character.END_PUNCTUATION);
-            defCategory("Pc", 1<<Character.CONNECTOR_PUNCTUATION);
-            defCategory("Po", 1<<Character.OTHER_PUNCTUATION);
-            defCategory("Sm", 1<<Character.MATH_SYMBOL);
-            defCategory("Sc", 1<<Character.CURRENCY_SYMBOL);
-            defCategory("Sk", 1<<Character.MODIFIER_SYMBOL);
-            defCategory("So", 1<<Character.OTHER_SYMBOL);
-            defCategory("Pi", 1<<Character.INITIAL_QUOTE_PUNCTUATION);
-            defCategory("Pf", 1<<Character.FINAL_QUOTE_PUNCTUATION);
-            defCategory("L", ((1<<Character.UPPERCASE_LETTER) |
-                              (1<<Character.LOWERCASE_LETTER) |
-                              (1<<Character.TITLECASE_LETTER) |
-                              (1<<Character.MODIFIER_LETTER)  |
-                              (1<<Character.OTHER_LETTER)));
-            defCategory("M", ((1<<Character.NON_SPACING_MARK) |
-                              (1<<Character.ENCLOSING_MARK)   |
-                              (1<<Character.COMBINING_SPACING_MARK)));
-            defCategory("N", ((1<<Character.DECIMAL_DIGIT_NUMBER) |
-                              (1<<Character.LETTER_NUMBER)        |
-                              (1<<Character.OTHER_NUMBER)));
-            defCategory("Z", ((1<<Character.SPACE_SEPARATOR) |
-                              (1<<Character.LINE_SEPARATOR)  |
-                              (1<<Character.PARAGRAPH_SEPARATOR)));
-            defCategory("C", ((1<<Character.CONTROL)     |
-                              (1<<Character.FORMAT)      |
-                              (1<<Character.PRIVATE_USE) |
-                              (1<<Character.SURROGATE))); // Other
-            defCategory("P", ((1<<Character.DASH_PUNCTUATION)      |
-                              (1<<Character.START_PUNCTUATION)     |
-                              (1<<Character.END_PUNCTUATION)       |
-                              (1<<Character.CONNECTOR_PUNCTUATION) |
-                              (1<<Character.OTHER_PUNCTUATION)     |
-                              (1<<Character.INITIAL_QUOTE_PUNCTUATION) |
-                              (1<<Character.FINAL_QUOTE_PUNCTUATION)));
-            defCategory("S", ((1<<Character.MATH_SYMBOL)     |
-                              (1<<Character.CURRENCY_SYMBOL) |
-                              (1<<Character.MODIFIER_SYMBOL) |
-                              (1<<Character.OTHER_SYMBOL)));
-            defCategory("LC", ((1<<Character.UPPERCASE_LETTER) |
-                               (1<<Character.LOWERCASE_LETTER) |
-                               (1<<Character.TITLECASE_LETTER)));
-            defCategory("LD", ((1<<Character.UPPERCASE_LETTER) |
-                               (1<<Character.LOWERCASE_LETTER) |
-                               (1<<Character.TITLECASE_LETTER) |
-                               (1<<Character.MODIFIER_LETTER)  |
-                               (1<<Character.OTHER_LETTER)     |
-                               (1<<Character.DECIMAL_DIGIT_NUMBER)));
-            defRange("L1", 0x00, 0xFF); // Latin-1
-            map.put("all", new CharPropertyFactory() {
-                    CharProperty make() { return new All(); }});
-
-            // Posix regular expression character classes, defined in
-            // http://www.unix.org/onlinepubs/009695399/basedefs/xbd_chap09.html
-            defRange("ASCII", 0x00, 0x7F);   // ASCII
-            defCtype("Alnum", ASCII.ALNUM);  // Alphanumeric characters
-            defCtype("Alpha", ASCII.ALPHA);  // Alphabetic characters
-            defCtype("Blank", ASCII.BLANK);  // Space and tab characters
-            defCtype("Cntrl", ASCII.CNTRL);  // Control characters
-            defRange("Digit", '0', '9');     // Numeric characters
-            defCtype("Graph", ASCII.GRAPH);  // printable and visible
-            defRange("Lower", 'a', 'z');     // Lower-case alphabetic
-            defRange("Print", 0x20, 0x7E);   // Printable characters
-            defCtype("Punct", ASCII.PUNCT);  // Punctuation characters
-            defCtype("Space", ASCII.SPACE);  // Space characters
-            defRange("Upper", 'A', 'Z');     // Upper-case alphabetic
-            defCtype("XDigit",ASCII.XDIGIT); // hexadecimal digits
-
-            // Java character properties, defined by methods in Character.java
-            defClone("javaLowerCase", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isLowerCase(ch);}});
-            defClone("javaUpperCase", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isUpperCase(ch);}});
-            defClone("javaAlphabetic", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isAlphabetic(ch);}});
-            defClone("javaIdeographic", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isIdeographic(ch);}});
-            defClone("javaTitleCase", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isTitleCase(ch);}});
-            defClone("javaDigit", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isDigit(ch);}});
-            defClone("javaDefined", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isDefined(ch);}});
-            defClone("javaLetter", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isLetter(ch);}});
-            defClone("javaLetterOrDigit", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isLetterOrDigit(ch);}});
-            defClone("javaJavaIdentifierStart", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isJavaIdentifierStart(ch);}});
-            defClone("javaJavaIdentifierPart", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isJavaIdentifierPart(ch);}});
-            defClone("javaUnicodeIdentifierStart", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isUnicodeIdentifierStart(ch);}});
-            defClone("javaUnicodeIdentifierPart", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isUnicodeIdentifierPart(ch);}});
-            defClone("javaIdentifierIgnorable", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isIdentifierIgnorable(ch);}});
-            defClone("javaSpaceChar", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isSpaceChar(ch);}});
-            defClone("javaWhitespace", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isWhitespace(ch);}});
-            defClone("javaISOControl", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isISOControl(ch);}});
-            defClone("javaMirrored", new CloneableProperty() {
-                boolean isSatisfiedBy(int ch) {
-                    return Character.isMirrored(ch);}});
-        }
-    }
 
     /**
      * Creates a predicate which can be used to match a string.
