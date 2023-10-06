@@ -168,6 +168,14 @@ public final class Matcher implements MatchResult {
     int[] locals;
 
     /**
+     * Storage used by top greedy Loop node to store a specific hash set to
+     * keep the beginning index of the failed repetition match. The nodes
+     * themselves are stateless, so they rely on this field to hold state
+     * during a match.
+     */
+    IntHashSet[] localsPos;
+
+    /**
      * Boolean indicating whether or not more input could change
      * the results of the last match.
      *
@@ -208,6 +216,11 @@ public final class Matcher implements MatchResult {
     boolean anchoringBounds = true;
 
     /**
+     * Number of times this matcher's state has been modified
+     */
+    int modCount;
+
+    /**
      * No default constructor.
      */
     Matcher() {
@@ -224,6 +237,7 @@ public final class Matcher implements MatchResult {
         int parentGroupCount = Math.max(parent.capturingGroupCount, 10);
         groups = new int[parentGroupCount * 2];
         locals = new int[parent.localCount];
+        localsPos = new IntHashSet[parent.localTCNCount];
 
         // Put fields into initial states
         reset();
@@ -243,15 +257,92 @@ public final class Matcher implements MatchResult {
      * The result is unaffected by subsequent operations performed upon this
      * matcher.
      *
-     * @return  a <code>MatchResult</code> with the state of this matcher
+     * @return  a {@code MatchResult} with the state of this matcher
      * @since 1.5
      */
     public MatchResult toMatchResult() {
-        Matcher result = new Matcher(this.parentPattern, text.toString());
-        result.first = this.first;
-        result.last = this.last;
-        result.groups = this.groups.clone();
-        return result;
+        return toMatchResult(text.toString());
+    }
+
+    private MatchResult toMatchResult(String text) {
+        return new ImmutableMatchResult(this.first,
+                this.last,
+                groupCount(),
+                this.groups.clone(),
+                text);
+    }
+
+    private static class ImmutableMatchResult implements MatchResult {
+        private final int first;
+        private final int last;
+        private final int[] groups;
+        private final int groupCount;
+        private final String text;
+
+        ImmutableMatchResult(int first, int last, int groupCount,
+                             int groups[], String text)
+        {
+            this.first = first;
+            this.last = last;
+            this.groupCount = groupCount;
+            this.groups = groups;
+            this.text = text;
+        }
+
+        @Override
+        public int start() {
+            checkMatch();
+            return first;
+        }
+
+        @Override
+        public int start(int group) {
+            checkMatch();
+            if (group < 0 || group > groupCount)
+                throw new IndexOutOfBoundsException("No group " + group);
+            return groups[group * 2];
+        }
+
+        @Override
+        public int end() {
+            checkMatch();
+            return last;
+        }
+
+        @Override
+        public int end(int group) {
+            checkMatch();
+            if (group < 0 || group > groupCount)
+                throw new IndexOutOfBoundsException("No group " + group);
+            return groups[group * 2 + 1];
+        }
+
+        @Override
+        public int groupCount() {
+            return groupCount;
+        }
+
+        @Override
+        public String group() {
+            checkMatch();
+            return group(0);
+        }
+
+        @Override
+        public String group(int group) {
+            checkMatch();
+            if (group < 0 || group > groupCount)
+                throw new IndexOutOfBoundsException("No group " + group);
+            if ((groups[group*2] == -1) || (groups[group*2+1] == -1))
+                return null;
+            return text.subSequence(groups[group * 2], groups[group * 2 + 1]).toString();
+        }
+
+        private void checkMatch() {
+            if (first < 0)
+                throw new IllegalStateException("No match found");
+
+        }
     }
 
     /**
@@ -283,6 +374,8 @@ public final class Matcher implements MatchResult {
             groups[i] = -1;
         for (int i = 0; i < locals.length; i++)
             locals[i] = -1;
+        localsPos = new IntHashSet[parentPattern.localTCNCount];
+        modCount++;
         return this;
     }
 
@@ -304,9 +397,14 @@ public final class Matcher implements MatchResult {
             groups[i] = -1;
         for(int i=0; i<locals.length; i++)
             locals[i] = -1;
+        for (int i = 0; i < localsPos.length; i++) {
+            if (localsPos[i] != null)
+                localsPos[i].clear();
+        }
         lastAppendPosition = 0;
         from = 0;
         to = getTextLength();
+        modCount++;
         return this;
     }
 
@@ -722,7 +820,7 @@ public final class Matcher implements MatchResult {
      *   append position, and appends them to the given string buffer.  It
      *   stops after reading the last character preceding the previous match,
      *   that is, the character at index {@link
-     *   #start()}&nbsp;<tt>-</tt>&nbsp;<tt>1</tt>.  </p></li>
+     *   #start()}&nbsp;{@code -}&nbsp;{@code 1}.  </p></li>
      *
      *   <li><p> It appends the given replacement string to the string buffer.
      *   </p></li>
@@ -735,21 +833,21 @@ public final class Matcher implements MatchResult {
      *
      * <p> The replacement string may contain references to subsequences
      * captured during the previous match: Each occurrence of
-     * <tt>${</tt><i>name</i><tt>}</tt> or <tt>$</tt><i>g</i>
+     * <code>${</code><i>name</i><code>}</code> or {@code $}<i>g</i>
      * will be replaced by the result of evaluating the corresponding
      * {@link #group(String) group(name)} or {@link #group(int) group(g)}
-     * respectively. For  <tt>$</tt><i>g</i>,
-     * the first number after the <tt>$</tt> is always treated as part of
+     * respectively. For {@code $}<i>g</i>,
+     * the first number after the {@code $} is always treated as part of
      * the group reference. Subsequent numbers are incorporated into g if
      * they would form a legal group reference. Only the numerals '0'
      * through '9' are considered as potential components of the group
-     * reference. If the second group matched the string <tt>"foo"</tt>, for
-     * example, then passing the replacement string <tt>"$2bar"</tt> would
-     * cause <tt>"foobar"</tt> to be appended to the string buffer. A dollar
-     * sign (<tt>$</tt>) may be included as a literal in the replacement
-     * string by preceding it with a backslash (<tt>\$</tt>).
+     * reference. If the second group matched the string {@code "foo"}, for
+     * example, then passing the replacement string {@code "$2bar"} would
+     * cause {@code "foobar"} to be appended to the string buffer. A dollar
+     * sign ({@code $}) may be included as a literal in the replacement
+     * string by preceding it with a backslash ({@code \$}).
      *
-     * <p> Note that backslashes (<tt>\</tt>) and dollar signs (<tt>$</tt>) in
+     * <p> Note that backslashes ({@code \}) and dollar signs ({@code $}) in
      * the replacement string may cause the results to be different than if it
      * were being treated as a literal replacement string. Dollar signs may be
      * treated as references to captured subsequences as described above, and
@@ -757,9 +855,9 @@ public final class Matcher implements MatchResult {
      * string.
      *
      * <p> This method is intended to be used in a loop together with the
-     * {@link #appendTail appendTail} and {@link #find find} methods.  The
-     * following code, for example, writes <tt>one dog two dogs in the
-     * yard</tt> to the standard-output stream: </p>
+     * {@link #appendTail(StringBuffer) appendTail} and {@link #find() find}
+     * methods.  The following code, for example, writes {@code one dog two dogs
+     * in the yard} to the standard-output stream: </p>
      *
      * <blockquote><pre>
      * Pattern p = Pattern.compile("cat");
@@ -792,22 +890,124 @@ public final class Matcher implements MatchResult {
      *          that does not exist in the pattern
      */
     public Matcher appendReplacement(StringBuffer sb, String replacement) {
-
         // If no match, return error
         if (first < 0)
             throw new IllegalStateException("No match available");
-
-        // Process substitution string to replace group references with groups
-        int cursor = 0;
         StringBuilder result = new StringBuilder();
+        appendExpandedReplacement(replacement, result);
+        // Append the intervening text
+        sb.append(text, lastAppendPosition, first);
+        // Append the match substitution
+        sb.append(result);
+        lastAppendPosition = last;
+        modCount++;
+        return this;
+    }
 
+    /**
+     * Implements a non-terminal append-and-replace step.
+     *
+     * <p> This method performs the following actions: </p>
+     *
+     * <ol>
+     *
+     *   <li><p> It reads characters from the input sequence, starting at the
+     *   append position, and appends them to the given string builder.  It
+     *   stops after reading the last character preceding the previous match,
+     *   that is, the character at index {@link
+     *   #start()}&nbsp;{@code -}&nbsp;{@code 1}.  </p></li>
+     *
+     *   <li><p> It appends the given replacement string to the string builder.
+     *   </p></li>
+     *
+     *   <li><p> It sets the append position of this matcher to the index of
+     *   the last character matched, plus one, that is, to {@link #end()}.
+     *   </p></li>
+     *
+     * </ol>
+     *
+     * <p> The replacement string may contain references to subsequences
+     * captured during the previous match: Each occurrence of
+     * {@code $}<i>g</i> will be replaced by the result of
+     * evaluating {@link #group(int) group}{@code (}<i>g</i>{@code )}.
+     * The first number after the {@code $} is always treated as part of
+     * the group reference. Subsequent numbers are incorporated into g if
+     * they would form a legal group reference. Only the numerals '0'
+     * through '9' are considered as potential components of the group
+     * reference. If the second group matched the string {@code "foo"}, for
+     * example, then passing the replacement string {@code "$2bar"} would
+     * cause {@code "foobar"} to be appended to the string builder. A dollar
+     * sign ({@code $}) may be included as a literal in the replacement
+     * string by preceding it with a backslash ({@code \$}).
+     *
+     * <p> Note that backslashes ({@code \}) and dollar signs ({@code $}) in
+     * the replacement string may cause the results to be different than if it
+     * were being treated as a literal replacement string. Dollar signs may be
+     * treated as references to captured subsequences as described above, and
+     * backslashes are used to escape literal characters in the replacement
+     * string.
+     *
+     * <p> This method is intended to be used in a loop together with the
+     * {@link #appendTail(StringBuilder) appendTail} and
+     * {@link #find() find} methods. The following code, for example, writes
+     * {@code one dog two dogs in the yard} to the standard-output stream: </p>
+     *
+     * <blockquote><pre>
+     * Pattern p = Pattern.compile("cat");
+     * Matcher m = p.matcher("one cat two cats in the yard");
+     * StringBuilder sb = new StringBuilder();
+     * while (m.find()) {
+     *     m.appendReplacement(sb, "dog");
+     * }
+     * m.appendTail(sb);
+     * System.out.println(sb.toString());</pre></blockquote>
+     *
+     * @param  sb
+     *         The target string builder
+     * @param  replacement
+     *         The replacement string
+     * @return  This matcher
+     *
+     * @throws  IllegalStateException
+     *          If no match has yet been attempted,
+     *          or if the previous match operation failed
+     * @throws  IllegalArgumentException
+     *          If the replacement string refers to a named-capturing
+     *          group that does not exist in the pattern
+     * @throws  IndexOutOfBoundsException
+     *          If the replacement string refers to a capturing group
+     *          that does not exist in the pattern
+     * @since 9
+     */
+    public Matcher appendReplacement(StringBuilder sb, String replacement) {
+        // If no match, return error
+        if (first < 0)
+            throw new IllegalStateException("No match available");
+        StringBuilder result = new StringBuilder();
+        appendExpandedReplacement(replacement, result);
+        // Append the intervening text
+        sb.append(text, lastAppendPosition, first);
+        // Append the match substitution
+        sb.append(result);
+        lastAppendPosition = last;
+        modCount++;
+        return this;
+    }
+
+    /**
+     * Processes replacement string to replace group references with
+     * groups.
+     */
+    private StringBuilder appendExpandedReplacement(
+            String replacement, StringBuilder result) {
+        int cursor = 0;
         while (cursor < replacement.length()) {
             char nextChar = replacement.charAt(cursor);
             if (nextChar == '\\') {
                 cursor++;
                 if (cursor == replacement.length())
                     throw new IllegalArgumentException(
-                        "character to be escaped is missing");
+                            "character to be escaped is missing");
                 nextChar = replacement.charAt(cursor);
                 result.append(nextChar);
                 cursor++;
@@ -816,8 +1016,8 @@ public final class Matcher implements MatchResult {
                 cursor++;
                 // Throw IAE if this "$" is the last character in replacement
                 if (cursor == replacement.length())
-                   throw new IllegalArgumentException(
-                        "Illegal group reference: group index is missing");
+                    throw new IllegalArgumentException(
+                            "Illegal group reference: group index is missing");
                 nextChar = replacement.charAt(cursor);
                 int refNum = -1;
                 if (nextChar == '{') {
@@ -826,8 +1026,8 @@ public final class Matcher implements MatchResult {
                     while (cursor < replacement.length()) {
                         nextChar = replacement.charAt(cursor);
                         if (ASCII.isLower(nextChar) ||
-                            ASCII.isUpper(nextChar) ||
-                            ASCII.isDigit(nextChar)) {
+                                ASCII.isUpper(nextChar) ||
+                                ASCII.isDigit(nextChar)) {
                             gsb.append(nextChar);
                             cursor++;
                         } else {
@@ -836,26 +1036,26 @@ public final class Matcher implements MatchResult {
                     }
                     if (gsb.length() == 0)
                         throw new IllegalArgumentException(
-                            "named capturing group has 0 length name");
+                                "named capturing group has 0 length name");
                     if (nextChar != '}')
                         throw new IllegalArgumentException(
-                            "named capturing group is missing trailing '}'");
+                                "named capturing group is missing trailing '}'");
                     String gname = gsb.toString();
                     if (ASCII.isDigit(gname.charAt(0)))
                         throw new IllegalArgumentException(
-                            "capturing group name {" + gname +
-                            "} starts with digit character");
+                                "capturing group name {" + gname +
+                                        "} starts with digit character");
                     if (!parentPattern.namedGroups().containsKey(gname))
                         throw new IllegalArgumentException(
-                            "No group with name {" + gname + "}");
+                                "No group with name {" + gname + "}");
                     refNum = parentPattern.namedGroups().get(gname);
                     cursor++;
                 } else {
                     // The first number is always a group
-                    refNum = (int)nextChar - '0';
-                    if ((refNum < 0)||(refNum > 9))
+                    refNum = nextChar - '0';
+                    if ((refNum < 0) || (refNum > 9))
                         throw new IllegalArgumentException(
-                            "Illegal group reference");
+                                "Illegal group reference");
                     cursor++;
                     // Capture the largest legal group string
                     boolean done = false;
@@ -864,7 +1064,7 @@ public final class Matcher implements MatchResult {
                             break;
                         }
                         int nextDigit = replacement.charAt(cursor) - '0';
-                        if ((nextDigit < 0)||(nextDigit > 9)) { // not a number
+                        if ((nextDigit < 0) || (nextDigit > 9)) { // not a number
                             break;
                         }
                         int newRefNum = (refNum * 10) + nextDigit;
@@ -884,13 +1084,7 @@ public final class Matcher implements MatchResult {
                 cursor++;
             }
         }
-        // Append the intervening text
-        sb.append(text, lastAppendPosition, first);
-        // Append the match substitution
-        sb.append(result);
-
-        lastAppendPosition = last;
-        return this;
+        return result;
     }
 
     /**
@@ -899,8 +1093,8 @@ public final class Matcher implements MatchResult {
      * <p> This method reads characters from the input sequence, starting at
      * the append position, and appends them to the given string buffer.  It is
      * intended to be invoked after one or more invocations of the {@link
-     * #appendReplacement appendReplacement} method in order to copy the
-     * remainder of the input sequence.  </p>
+     * #appendReplacement(StringBuffer, String) appendReplacement} method in
+     * order to copy the remainder of the input sequence.  </p>
      *
      * @param  sb
      *         The target string buffer
@@ -908,6 +1102,28 @@ public final class Matcher implements MatchResult {
      * @return  The target string buffer
      */
     public StringBuffer appendTail(StringBuffer sb) {
+        sb.append(text, lastAppendPosition, getTextLength());
+        return sb;
+    }
+
+    /**
+     * Implements a terminal append-and-replace step.
+     *
+     * <p> This method reads characters from the input sequence, starting at
+     * the append position, and appends them to the given string builder.  It is
+     * intended to be invoked after one or more invocations of the {@link
+     * #appendReplacement(StringBuilder, String)
+     * appendReplacement} method in order to copy the remainder of the input
+     * sequence.  </p>
+     *
+     * @param  sb
+     *         The target string builder
+     *
+     * @return  The target string builder
+     *
+     * @since 9
+     */
+    public StringBuilder appendTail(StringBuilder sb) {
         sb.append(text, lastAppendPosition, getTextLength());
         return sb;
     }
@@ -950,7 +1166,7 @@ public final class Matcher implements MatchResult {
         reset();
         boolean result = find();
         if (result) {
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             do {
                 appendReplacement(sb, replacement);
                 result = find();
@@ -1000,7 +1216,7 @@ public final class Matcher implements MatchResult {
         reset();
         if (!find())
             return text.toString();
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         appendReplacement(sb, replacement);
         appendTail(sb);
         return sb.toString();
@@ -1178,15 +1394,15 @@ public final class Matcher implements MatchResult {
      */
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("java.util.regex.Matcher");
-        sb.append("[pattern=" + pattern());
-        sb.append(" region=");
-        sb.append(regionStart() + "," + regionEnd());
-        sb.append(" lastmatch=");
+        sb.append("java.util.regex.Matcher")
+                .append("[pattern=").append(pattern())
+                .append(" region=")
+                .append(regionStart()).append(',').append(regionEnd())
+                .append(" lastmatch=");
         if ((first >= 0) && (group() != null)) {
             sb.append(group());
         }
-        sb.append("]");
+        sb.append(']');
         return sb.toString();
     }
 
@@ -1244,11 +1460,16 @@ public final class Matcher implements MatchResult {
         this.oldLast = oldLast < 0 ? from : oldLast;
         for (int i = 0; i < groups.length; i++)
             groups[i] = -1;
+        for (int i = 0; i < localsPos.length; i++) {
+            if (localsPos[i] != null)
+                localsPos[i].clear();
+        }
         acceptMode = NOANCHOR;
         boolean result = parentPattern.root.match(this, from, text);
         if (!result)
             this.first = -1;
         this.oldLast = this.last;
+        this.modCount++;
         return result;
     }
 
@@ -1266,11 +1487,16 @@ public final class Matcher implements MatchResult {
         this.oldLast = oldLast < 0 ? from : oldLast;
         for (int i = 0; i < groups.length; i++)
             groups[i] = -1;
+        for (int i = 0; i < localsPos.length; i++) {
+            if (localsPos[i] != null)
+                localsPos[i].clear();
+        }
         acceptMode = anchor;
         boolean result = parentPattern.matchRoot.match(this, from, text);
         if (!result)
             this.first = -1;
         this.oldLast = this.last;
+        this.modCount++;
         return result;
     }
 
