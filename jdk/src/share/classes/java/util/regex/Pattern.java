@@ -2637,8 +2637,10 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                 if (prev == null) {
                     prev = node.negate();
                 } else {
-                    if (prev != node)
-                        prev = prev.negate().and(node);
+                    if (prev != node) {
+                        prev = prev.and(node);
+                        prev = prev.negate();
+                    }
                 }
             }
             ch = peek();
