@@ -89,7 +89,7 @@ public class TestRTMRetryCount extends CommandLineOptionTest {
 
         Asserts.assertEQ(statistics.size(), 1, "VM output should contain "
                 + "exactly one rtm locking statistics entry for method "
-                + busyLock.getMethodWithLockName());
+                + busyLock.getMethodWithLockName() + "stdout " + outputAnalyzer.getStdout());
 
         Asserts.assertEQ(statistics.get(0).getTotalAborts(), expectedAborts,
                 String.format("It is expected to get %d aborts",
