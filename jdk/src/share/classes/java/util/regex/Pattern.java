@@ -2826,6 +2826,8 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                 if (p == null)
                     p = CharPredicates.forProperty(name);
             }
+            if (p == null)
+                throw error("Unknown character property name {In/Is" + name + "}");
         }
         if (isComplement) {
             hasSupplementary = true;
