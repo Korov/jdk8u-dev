@@ -2638,8 +2638,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     prev = node.negate();
                 } else {
                     if (prev != node) {
-                        prev = prev.and(node);
-                        prev = prev.negate();
+                        prev = prev.negate().and(node);
                     }
                 }
             }
@@ -2672,8 +2671,8 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                                 ch == 0x53 || ch == 0x73 ||    //S and s
                                 ch == 0x4b || ch == 0x6b ||    //K and k
                                 ch == 0xc5 || ch == 0xe5))) {  //A+ring
-            BitClass bitClass = bits.add(ch, flags());
-            return c -> c < 256 && bitClass.bits[c];
+            bits.add(ch, flags());
+            return null;
         }
         return single(ch);
     }
@@ -2842,7 +2841,7 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         if (p instanceof Pattern.BmpCharPredicate)
             return new BmpCharProperty((Pattern.BmpCharPredicate)p);
         else {
-            hasSupplementary = true;
+            // hasSupplementary = true;
             return new CharProperty(p);
         }
     }
