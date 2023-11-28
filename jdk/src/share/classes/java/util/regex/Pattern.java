@@ -2546,39 +2546,31 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
      */
     private CharPredicate clazz(boolean consume) {
         CharPredicate prev = null;
-        CharPredicate node = null;
+        CharPredicate curr = null;
         BitClass bits = new BitClass();
         BmpCharPredicate bitsP = ch -> ch < 256 && bits.bits[ch];
 
-        boolean include = true;
-        boolean firstInClass = true;
+        boolean isNeg = false;
         boolean hasBits = false;
         int ch = next();
+
+        // Negates if first char in a class, otherwise literal
+        if (ch == '^' && temp[cursor-1] == '[') {
+            ch = next();
+            isNeg = true;
+        }
+
         for (;;) {
             switch (ch) {
-                case '^':
-                    // Negates if first char in a class, otherwise literal
-                    if (firstInClass) {
-                        if (temp[cursor-1] != '[')
-                            break;
-                        ch = next();
-                        include = !include;
-                        continue;
-                    } else {
-                        // ^ not first in class, treat as literal
-                        break;
-                    }
                 case '[':
-                    firstInClass = false;
-                    node = clazz(true);
+                    curr = clazz(true);
                     if (prev == null)
-                        prev = node;
+                        prev = curr;
                     else
-                        prev = prev.union(node);
+                        prev = prev.union(curr);
                     ch = peek();
                     continue;
                 case '&':
-                    firstInClass = false;
                     ch = next();
                     if (ch == '&') {
                         ch = next();
@@ -2598,21 +2590,21 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                         if (hasBits) {
                             // bits used, union has high precedence
                             if (prev == null) {
-                                prev = node = bitsP;
+                                prev = curr = bitsP;
                             } else {
                                 prev = prev.union(bitsP);
                             }
                             hasBits = false;
                         }
                         if (rightNode != null)
-                            node = rightNode;
+                            curr = rightNode;
                         if (prev == null) {
                             if (rightNode == null)
                                 throw error("Bad class syntax");
                             else
                                 prev = rightNode;
                         } else {
-                            prev = prev.and(node);
+                            prev = prev.and(curr);
                         }
                     } else {
                         // treat as a literal &
@@ -2621,12 +2613,10 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     }
                     continue;
                 case 0:
-                    firstInClass = false;
                     if (cursor >= patternLength)
                         throw error("Unclosed character class");
                     break;
                 case ']':
-                    firstInClass = false;
                     if (prev != null || hasBits) {
                         if (consume)
                             next();
@@ -2634,32 +2624,22 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                             prev = bitsP;
                         else if (hasBits)
                             prev = prev.union(bitsP);
+                        if (isNeg)
+                            return prev.negate();
                         return prev;
                     }
                     break;
                 default:
-                    firstInClass = false;
                     break;
             }
-            node = range(bits);
-            if (node == null) {    // the bits used
+            curr = range(bits);
+            if (curr == null) {    // the bits used
                 hasBits = true;
-            }
-            if (include) {
-                if (prev == null) {
-                    prev = node;
-                } else {
-                    if (prev != node)
-                        prev = prev.union(node);
-                }
             } else {
-                if (prev == null) {
-                    prev = node.negate();
-                } else {
-                    if (prev != node) {
-                        prev = prev.negate().and(node);
-                    }
-                }
+                if (prev == null)
+                    prev = curr;
+                else if (prev != curr)
+                    prev = prev.union(curr);
             }
             ch = peek();
         }
