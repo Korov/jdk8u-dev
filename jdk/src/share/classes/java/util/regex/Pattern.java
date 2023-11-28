@@ -2644,21 +2644,20 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
             node = range(bits);
             if (node == null) {    // the bits used
                 hasBits = true;
-            } else {
-                if (include) {
-                    if (prev == null) {
-                        prev = node;
-                    } else {
-                        if (prev != node)
-                            prev = prev.union(node);
-                    }
+            }
+            if (include) {
+                if (prev == null) {
+                    prev = node;
                 } else {
-                    if (prev == null) {
-                        prev = node.negate();
-                    } else {
-                        if (prev != node) {
-                            prev = prev.negate().and(node);
-                        }
+                    if (prev != node)
+                        prev = prev.union(node);
+                }
+            } else {
+                if (prev == null) {
+                    prev = node.negate();
+                } else {
+                    if (prev != node) {
+                        prev = prev.negate().and(node);
                     }
                 }
             }
