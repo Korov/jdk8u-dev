@@ -2548,8 +2548,11 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
         CharPredicate prev = null;
         CharPredicate node = null;
         BitClass bits = new BitClass();
+        BmpCharPredicate bitsP = ch -> ch < 256 && bits.bits[ch];
+
         boolean include = true;
         boolean firstInClass = true;
+        boolean hasBits = false;
         int ch = next();
         for (;;) {
             switch (ch) {
@@ -2592,6 +2595,15 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                             }
                             ch = peek();
                         }
+                        if (hasBits) {
+                            // bits used, union has high precedence
+                            if (prev == null) {
+                                prev = node = bitsP;
+                            } else {
+                                prev = prev.union(bitsP);
+                            }
+                            hasBits = false;
+                        }
                         if (rightNode != null)
                             node = rightNode;
                         if (prev == null) {
@@ -2615,9 +2627,13 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     break;
                 case ']':
                     firstInClass = false;
-                    if (prev != null) {
+                    if (prev != null || hasBits) {
                         if (consume)
                             next();
+                        if (prev == null)
+                            prev = bitsP;
+                        else if (hasBits)
+                            prev = prev.union(bitsP);
                         return prev;
                     }
                     break;
@@ -2626,19 +2642,23 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                     break;
             }
             node = range(bits);
-            if (include) {
-                if (prev == null) {
-                    prev = node;
-                } else {
-                    if (prev != node)
-                        prev = prev.union(node);
-                }
+            if (node == null) {    // the bits used
+                hasBits = true;
             } else {
-                if (prev == null) {
-                    prev = node.negate();
+                if (include) {
+                    if (prev == null) {
+                        prev = node;
+                    } else {
+                        if (prev != node)
+                            prev = prev.union(node);
+                    }
                 } else {
-                    if (prev != node) {
-                        prev = prev.negate().and(node);
+                    if (prev == null) {
+                        prev = node.negate();
+                    } else {
+                        if (prev != node) {
+                            prev = prev.negate().and(node);
+                        }
                     }
                 }
             }
@@ -2671,8 +2691,8 @@ loop:   for(int x=0, offset=0; x<nCodePoints; x++, offset+=len) {
                                 ch == 0x53 || ch == 0x73 ||    //S and s
                                 ch == 0x4b || ch == 0x6b ||    //K and k
                                 ch == 0xc5 || ch == 0xe5))) {  //A+ring
-            BitClass bitClass = bits.add(ch, flags());
-            return bitClass.predicate;
+            bits.add(ch, flags());
+            return null;
         }
         return single(ch);
     }
