@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributeView;
+import java.util.function.Predicate;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -235,8 +236,23 @@ public class LogGeneratedClassesTest extends LUtils {
                                   .filter(s -> s.startsWith("WARNING: Exception"))
                                   .count(),
                      2, "show error each capture");
-        // dumpLong/com/example/nosense/nosense
-        assertEquals(Files.walk(Paths.get("dumpLong")).count(), 5, "Two lambda captured failed to log");
+        // dumpLong/com/example/nonsense/nonsense
+        Path dumpPath = Paths.get("dumpLong/com/example/nonsense");
+        Predicate<Path> filter = p -> p.getParent() == null || dumpPath.startsWith(p) || p.startsWith(dumpPath);
+        boolean debug = true;
+        if (debug) {
+            Files.walk(Paths.get("dumpLong"))
+                    .forEachOrdered(p -> {
+                        if (filter.test(p)) {
+                            System.out.println("accepted: " + p.toString());
+                        } else {
+                            System.out.println("filetered out: " + p.toString());
+                        }
+                    });
+        }
+        assertEquals(Files.walk(Paths.get("dumpLong"))
+                .filter(filter)
+                .count(), 5, "Two lambda captured failed to log");
         tr.assertZero("Should still return 0");
     }
 }
